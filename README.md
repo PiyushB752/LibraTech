@@ -1,1 +1,1 @@
-# LibraTech
+# LibraTech - Public Library Management System
