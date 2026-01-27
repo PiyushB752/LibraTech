@@ -1,20 +1,62 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/book.dart';
+import '../services/book_service.dart';
 
-class BookDetailScreen extends StatelessWidget {
+class BookDetailScreen extends StatefulWidget {
   final Book book;
+  const BookDetailScreen({super.key, required this.book});
 
-  const BookDetailScreen({
-    super.key,
-    required this.book,
-  });
+  @override
+  State<BookDetailScreen> createState() => _BookDetailScreenState();
+}
+
+class _BookDetailScreenState extends State<BookDetailScreen> {
+  final BookService _bookService = BookService();
+  bool _isLoading = false;
+
+  Future<void> _borrowBook() async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null){
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      await _bookService.borrowBook(
+        book: widget.book,
+        userId: user.uid,
+      );
+
+      if (!mounted){
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Book borrowed successfully')),
+      );
+
+      Navigator.pop(context); 
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final book = widget.book;
+    final isAvailable = book.availableCopies > 0;
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text(book.title),
-      ),
+      appBar: AppBar(title: Text(book.title)),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -23,61 +65,33 @@ class BookDetailScreen extends StatelessWidget {
             Text(
               book.title,
               style: const TextStyle(
-                fontSize: 24,
+                fontSize: 22,
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 8),
-            Text(
-              'by ${book.author}',
-              style: const TextStyle(color: Colors.white70),
-            ),
-            const SizedBox(height: 16),
-
-            _infoRow('Category', book.category),
-            _infoRow('ISBN', book.isbn),
-            _infoRow(
-              'Availability',
-              '${book.availableCopies} / ${book.totalCopies}',
-              valueColor: book.availableCopies > 0
-                  ? Colors.greenAccent
-                  : Colors.redAccent,
-            ),
-
-            const SizedBox(height: 24),
-
-            Text(
-              book.description,
-              style: const TextStyle(fontSize: 16),
+            Text('Author: ${book.author}'),
+            Text('ISBN: ${book.isbn}'),
+            Text('Category: ${book.category}'),
+            const SizedBox(height: 12),
+            Text(book.description),
+            const Spacer(),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed:
+                    isAvailable && !_isLoading ? _borrowBook : null,
+                child: _isLoading
+                    ? const CircularProgressIndicator()
+                    : Text(
+                        isAvailable
+                            ? 'Borrow Book'
+                            : 'Not Available',
+                      ),
+              ),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _infoRow(String label, String value, {Color? valueColor}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 110,
-            child: Text(
-              '$label:',
-              style: const TextStyle(color: Colors.white70),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: valueColor ?? Colors.white,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

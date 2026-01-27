@@ -3,29 +3,17 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/book.dart';
 import '../services/book_service.dart';
 import '../../auth/screens/login_screen.dart';
-import 'book_detail_screen.dart';
+import 'my_borrowed_books_screen.dart';
 
-class BookListScreen extends StatefulWidget {
+class BookListScreen extends StatelessWidget {
   const BookListScreen({super.key});
 
-  @override
-  State<BookListScreen> createState() => _BookListScreenState();
-}
-
-class _BookListScreenState extends State<BookListScreen> {
-  final BookService _bookService = BookService();
-  late Future<List<Book>> _booksFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _booksFuture = _bookService.getAllBooks();
-  }
-
-  Future<void> _logout() async {
+  void _logout(BuildContext context) async {
     await FirebaseAuth.instance.signOut();
 
-    if (!mounted) return;
+    if (!context.mounted){
+      return;
+    }
 
     Navigator.pushReplacement(
       context,
@@ -35,38 +23,45 @@ class _BookListScreenState extends State<BookListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final BookService bookService = BookService();
+    final user = FirebaseAuth.instance.currentUser;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Library Books'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.book),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const MyBorrowedBooksScreen(),
+                ),
+              );
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: _logout,
+            onPressed: () => _logout(context),
           ),
         ],
       ),
-      body: FutureBuilder<List<Book>>(
-        future: _booksFuture,
+      body: StreamBuilder<List<Book>>(
+        stream: bookService.getBooksStream(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
           if (snapshot.hasError) {
-            return Center(
-              child: Text(
-                'Error loading books',
-                style: TextStyle(color: Colors.red.shade300),
-              ),
-            );
+            return const Center(child: Text('Error loading books'));
           }
 
-          final books = snapshot.data;
+          final books = snapshot.data ?? [];
 
-          if (books == null || books.isEmpty) {
-            return const Center(
-              child: Text('No books available'),
-            );
+          if (books.isEmpty) {
+            return const Center(child: Text('No books available'));
           }
 
           return ListView.separated(
@@ -75,48 +70,36 @@ class _BookListScreenState extends State<BookListScreen> {
             separatorBuilder: (_, __) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
               final book = books[index];
+              final isAvailable = book.availableCopies > 0;
 
               return Card(
-                color: Colors.grey.shade900,
                 elevation: 3,
                 child: ListTile(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => BookDetailScreen(book: book),
-                      ),
-                    );
-                  },
-                  title: Text(
-                    book.title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
+                  title: Text(book.title),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const SizedBox(height: 4),
-                      Text(
-                        'Author: ${book.author}',
-                        style: const TextStyle(color: Colors.white70),
-                      ),
+                      Text('Author: ${book.author}'),
                       Text(
                         'Available: ${book.availableCopies}/${book.totalCopies}',
                         style: TextStyle(
-                          color: book.availableCopies > 0
-                              ? Colors.greenAccent
-                              : Colors.redAccent,
+                          color: isAvailable
+                              ? Colors.green
+                              : Colors.red,
                         ),
                       ),
                     ],
                   ),
-                  trailing: const Icon(
-                    Icons.arrow_forward_ios,
-                    size: 16,
-                    color: Colors.white54,
+                  trailing: ElevatedButton(
+                    onPressed: isAvailable
+                        ? () async {
+                            await bookService.borrowBook(
+                              book: book,
+                              userId: user!.uid,
+                            );
+                          }
+                        : null,
+                    child: const Text('Borrow'),
                   ),
                 ),
               );
