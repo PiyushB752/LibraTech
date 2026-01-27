@@ -9,7 +9,6 @@ class Book {
   final int totalCopies;
   final int availableCopies;
   final String description;
-  final Timestamp createdAt;
 
   Book({
     required this.id,
@@ -20,7 +19,6 @@ class Book {
     required this.totalCopies,
     required this.availableCopies,
     required this.description,
-    required this.createdAt,
   });
 
   factory Book.fromFirestore(DocumentSnapshot doc) {
@@ -35,7 +33,6 @@ class Book {
       totalCopies: data['totalCopies'],
       availableCopies: data['availableCopies'],
       description: data['description'],
-      createdAt: data['createdAt'],
     );
   }
 }
