@@ -9,7 +9,7 @@ class MyBorrowedBooksScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-    final BookService bookService = BookService();
+    final bookService = BookService();
 
     if (user == null) {
       return const Scaffold(
@@ -25,15 +25,11 @@ class MyBorrowedBooksScreen extends StatelessWidget {
             .where('userId', isEqualTo: user.uid)
             .snapshots(),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          if (snapshot.hasError) {
-            return Center(child: Text(snapshot.error.toString()));
-          }
-
-          final docs = snapshot.data?.docs ?? [];
+          final docs = snapshot.data!.docs;
 
           if (docs.isEmpty) {
             return const Center(child: Text('No borrowed books'));
@@ -44,26 +40,48 @@ class MyBorrowedBooksScreen extends StatelessWidget {
             itemBuilder: (context, index) {
               final doc = docs[index];
               final data = doc.data() as Map<String, dynamic>;
+              final dueAtTimestamp = data['dueAt'] as Timestamp?;
+              final dueAt = dueAtTimestamp?.toDate();
+              final isOverdue =
+                  dueAt != null ? DateTime.now().isAfter(dueAt) : false;
 
               return Card(
                 child: ListTile(
                   title: Text(data['bookTitle']),
+                  subtitle: dueAt != null
+                      ? Text(
+                          isOverdue
+                              ? 'OVERDUE (Due: ${dueAt.toLocal().toString().split(' ')[0]})'
+                              : 'Due: ${dueAt.toLocal().toString().split(' ')[0]}',
+                          style: TextStyle(
+                            color: isOverdue ? Colors.red : Colors.green,
+                          ),
+                        )
+                      : null,
                   trailing: ElevatedButton(
                     child: const Text('Return'),
                     onPressed: () async {
-                      final bookSnap = await FirebaseFirestore.instance
-                          .collection('books')
-                          .doc(data['bookId'])
-                          .get();
+                      try {
+                        final bookSnap = await FirebaseFirestore.instance
+                            .collection('books')
+                            .doc(data['bookId'])
+                            .get();
 
-                      final currentAvailable =
-                          bookSnap['availableCopies'];
+                        await bookService.returnBook(
+                          borrowedDocId: doc.id,
+                          bookId: data['bookId'],
+                          currentAvailable: bookSnap['availableCopies'],
+                        );
 
-                      await bookService.returnBook(
-                        borrowedDocId: doc.id,
-                        bookId: data['bookId'],
-                        currentAvailable: currentAvailable,
-                      );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content: Text('Book returned successfully')),
+                        );
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error: $e')),
+                        );
+                      }
                     },
                   ),
                 ),
