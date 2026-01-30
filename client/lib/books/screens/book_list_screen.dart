@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+
 import '../models/book.dart';
 import '../services/book_service.dart';
 import '../../auth/screens/login_screen.dart';
 import 'my_borrowed_books_screen.dart';
 import 'book_detail_screen.dart';
+import '../../admin/screens/admin_dashboard_screen.dart';
+import '../../auth/services/role_service.dart'; // 🔹 Added
 
 class BookListScreen extends StatefulWidget {
   const BookListScreen({super.key});
@@ -17,6 +20,7 @@ class BookListScreen extends StatefulWidget {
 class _BookListScreenState extends State<BookListScreen> {
   final BookService _bookService = BookService();
   final TextEditingController _searchController = TextEditingController();
+
   String _searchQuery = '';
   String _selectedCategory = 'All';
 
@@ -59,6 +63,7 @@ class _BookListScreenState extends State<BookListScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.book),
+            tooltip: 'My Borrowed Books',
             onPressed: () {
               Navigator.push(
                 context,
@@ -68,8 +73,31 @@ class _BookListScreenState extends State<BookListScreen> {
               );
             },
           ),
+
+          FutureBuilder<String?>(
+            future: RoleService().getRole(user!.uid),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData || snapshot.data != 'admin') {
+                return const SizedBox.shrink();
+              }
+              return IconButton(
+                icon: const Icon(Icons.admin_panel_settings),
+                tooltip: 'Admin Panel',
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const AdminDashboardScreen(),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+
           IconButton(
             icon: const Icon(Icons.logout),
+            tooltip: 'Logout',
             onPressed: _logout,
           ),
         ],
@@ -92,6 +120,7 @@ class _BookListScreenState extends State<BookListScreen> {
               },
             ),
           ),
+
           StreamBuilder<List<Book>>(
             stream: _bookService.getBooksStream(),
             builder: (context, snapshot) {
@@ -104,10 +133,12 @@ class _BookListScreenState extends State<BookListScreen> {
                   value: _selectedCategory,
                   isExpanded: true,
                   items: categories
-                      .map((cat) => DropdownMenuItem(
-                            value: cat,
-                            child: Text(cat),
-                          ))
+                      .map(
+                        (cat) => DropdownMenuItem(
+                          value: cat,
+                          child: Text(cat),
+                        ),
+                      )
                       .toList(),
                   onChanged: (value) {
                     if (value == null) return;
@@ -117,7 +148,9 @@ class _BookListScreenState extends State<BookListScreen> {
               );
             },
           ),
+
           const SizedBox(height: 8),
+
           Expanded(
             child: StreamBuilder<List<Book>>(
               stream: _bookService.getBooksStream(),
@@ -128,12 +161,14 @@ class _BookListScreenState extends State<BookListScreen> {
 
                 final books = snapshot.data!;
                 final filteredBooks = books.where((book) {
-                  final matchesSearch = book.title
-                          .toLowerCase()
-                          .contains(_searchQuery) ||
-                      book.author.toLowerCase().contains(_searchQuery);
-                  final matchesCategory = _selectedCategory == 'All' ||
-                      book.category == _selectedCategory;
+                  final matchesSearch =
+                      book.title.toLowerCase().contains(_searchQuery) ||
+                          book.author.toLowerCase().contains(_searchQuery);
+
+                  final matchesCategory =
+                      _selectedCategory == 'All' ||
+                          book.category == _selectedCategory;
+
                   return matchesSearch && matchesCategory;
                 }).toList();
 
@@ -158,7 +193,6 @@ class _BookListScreenState extends State<BookListScreen> {
                       builder: (context, borrowedSnap) {
                         final alreadyBorrowed =
                             borrowedSnap.data?.docs.isNotEmpty ?? false;
-                        final isAvailable = book.availableCopies > 0;
 
                         return Card(
                           child: ListTile(
@@ -179,30 +213,37 @@ class _BookListScreenState extends State<BookListScreen> {
                               style: TextStyle(
                                 color: alreadyBorrowed
                                     ? Colors.orange
-                                    : (isAvailable
+                                    : (book.availableCopies > 0
                                         ? Colors.green
                                         : Colors.red),
                               ),
                             ),
                             trailing: ElevatedButton(
-                              onPressed: (!isAvailable || alreadyBorrowed)
-                                  ? null
-                                  : () async {
+                              onPressed: (!alreadyBorrowed &&
+                                      book.availableCopies > 0)
+                                  ? () async {
                                       try {
                                         await _bookService.borrowBook(
                                           book: book,
                                           userId: user!.uid,
                                         );
+
+                                        setState(() {});
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          const SnackBar(
+                                              content: Text(
+                                                  'Book borrowed successfully')),
+                                        );
                                       } catch (e) {
                                         if (!mounted) return;
                                         ScaffoldMessenger.of(context)
                                             .showSnackBar(
-                                          SnackBar(
-                                            content: Text(e.toString()),
-                                          ),
+                                          SnackBar(content: Text(e.toString())),
                                         );
                                       }
-                                    },
+                                    }
+                                  : null,
                               child: const Text('Borrow'),
                             ),
                           ),
