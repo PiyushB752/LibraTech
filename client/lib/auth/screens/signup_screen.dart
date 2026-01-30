@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../books/screens/book_list_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:libratech/auth/screens/home_screen.dart';
 import '../../shared/widgets/app_text_field.dart';
 import '../../shared/widgets/primary_button.dart';
 import '../services/auth_service.dart';
@@ -37,10 +38,21 @@ class _SignupScreenState extends State<SignupScreen> {
         password: _passwordController.text.trim(),
       );
 
-      if (user != null && mounted) {
+      if (user != null) {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .set({
+          'email': user.email,
+          'role': 'user', 
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
+        if (!mounted) return;
+
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const BookListScreen()),
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
         );
       }
     } catch (e) {
@@ -71,10 +83,7 @@ class _SignupScreenState extends State<SignupScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            AppTextField(
-              label: 'Email',
-              controller: _emailController,
-            ),
+            AppTextField(label: 'Email', controller: _emailController),
             const SizedBox(height: 16),
             AppTextField(
               label: 'Password',

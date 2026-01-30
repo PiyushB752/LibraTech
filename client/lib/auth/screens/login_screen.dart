@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../books/screens/book_list_screen.dart';
+import 'package:libratech/auth/screens/home_screen.dart';
 import '../../shared/widgets/app_text_field.dart';
 import '../../shared/widgets/primary_button.dart';
 import '../services/auth_service.dart';
-import 'signup_screen.dart'; 
+import 'signup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -34,11 +34,11 @@ class _LoginScreenState extends State<LoginScreen> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (_) => const BookListScreen(),
+            builder: (_) => const HomeScreen(),
           ),
         );
       }
-    } on Exception catch (e) {
+    } catch (e) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -65,10 +65,7 @@ class _LoginScreenState extends State<LoginScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            AppTextField(
-              label: 'Email',
-              controller: _emailController,
-            ),
+            AppTextField(label: 'Email', controller: _emailController),
             const SizedBox(height: 16),
             AppTextField(
               label: 'Password',
